@@ -1,0 +1,33 @@
+How is an HTTP request sent? Going from requests.get('https://google.com'), what happens?
+
+* We do DNS to get the IP address of 'https://google.com'.
+    struct addrinfo* result;
+    int error;
+    error = getaddrinfo("google.com", NULL, NULL, &result);
+
+Actually, this will look in the /etc/hosts file to see if it can resolve the hostname that way, before doing DNS. This is for historical reasons; this file existed before DNS existed. https://unix.stackexchange.com/questions/421491/what-is-the-purpose-of-etc-hosts
+
+* We issue a syscall asking Linux to create a socket.
+    fd = socket(AF_INET, SOCK_STREAM);
+
+AF_INET --> this means that the socket can communicate with IPv4 addresses. Julia Evans says the main alternative is AF_UNIX, which would be a Unix domain socket for communicating with other Unix processes. There is also AF_INET6 for IPv6 addresses.
+SOCK_STREAM --> this means we're using TCP. Julia Evans says the alternatives are SOCK_DGRAM, which means we're using UDP, and SOCK_RAW, which means "just let me send IP packets, I will implement my own protocol."
+
+* We issue another syscall asking Linux to connect, on the socket we created, to a given IP and port.
+    connect(fd, 12.13.14.15:80);
+
+This assigns a local port number to a socket, and sends packets in order to establish a TCP connection with the remove server. See https://en.wikipedia.org/wiki/Berkeley_sockets
+
+* Make the HTTP request by writing data into the socket.
+    write(fd, "GET /cat.png HTTP/1.1 ...");
+
+* Read the response back out of the socket.
+    cat_picture = read(fd ...);
+
+This will block until at least one byte is available. In order to get all the bytes, you'll need to loop until you see some kind of stopping condition. See https://www.linuxtoday.com/blog/blocking-and-non-blocking-i-0.html
+
+MISCELLANEOUS
+  - See https://github.com/alex/what-happens-when for an in-depth take on this question, involving more info about the browser but less about syscalls.
+
+COMMANDS:
+  - netstat -aW -t // display (a) all sockets, (W) don't truncate the foreign addresses, and (t) only display TCP sockets.
