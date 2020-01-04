@@ -1,12 +1,19 @@
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 #include <netdb.h>
-#include <arpa/inet.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+void stream_to_stdout(int fd) {
+  int chunk_size = 200; // arbitrary
+  char buffer[chunk_size];
+
+  // Put data in the buffer
+  while (read(fd, buffer, sizeof(buffer)) > 0) {
+    printf("%s", buffer);
+    memset(buffer, 0, sizeof(buffer));
+  }
+}
 
 int main(void)
 {
@@ -34,14 +41,10 @@ int main(void)
   char* data = "GET / HTTP/1.1\r\nHost: google.com \r\nConnection: close\r\n\r\n"; // a minimal HTTP GET request
   write(socket_fd, data, strlen(data));
 
-  // TODO: Can we read the whole response?
-  int amount_of_response_to_read = 1000 * sizeof(char);  
-  char* response = malloc(amount_of_response_to_read);
-  read(socket_fd, response, amount_of_response_to_read);
+  // We can't guarantee we can hold the entire response in memory (it's of indeterminate length), so
+  // we stream it to STDOUT.
+  stream_to_stdout(socket_fd);
 
-  printf("%s", response);
-
-  free(response);
   close(socket_fd);
   return EXIT_SUCCESS;
 }
